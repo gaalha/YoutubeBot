@@ -128,7 +128,8 @@ async def play(ctx: commands.Context, *args):
             queues[server_id] = {'queue': [(path, info)], 'loop': False}
             try: connection = await voice_state.channel.connect()
             except discord.ClientException: connection = get_voice_client_from_channel_id(voice_state.channel.id)
-            connection.play(discord.FFmpegOpusAudio(path), after=lambda error=None, connection=connection, server_id=server_id:
+            source = await discord.FFmpegOpusAudio.from_probe(path)
+            connection.play(source, after=lambda error=None, connection=connection, server_id=server_id:
                                                              after_track(error, connection, server_id))
 
 @bot.command('loop', aliases=['l'])
@@ -149,7 +150,7 @@ def get_voice_client_from_channel_id(channel_id: int):
         if voice_client.channel.id == channel_id:
             return voice_client
 
-def after_track(error, connection, server_id):
+async def after_track(error, connection, server_id):
     if error is not None:
         print(error)
     try:
@@ -161,7 +162,9 @@ def after_track(error, connection, server_id):
     if last_video_path not in [i[0] for i in queues[server_id]['queue']]: # check that the same video isn't queued multiple times
         try: os.remove(last_video_path)
         except FileNotFoundError: pass
-    try: connection.play(discord.FFmpegOpusAudio(queues[server_id]['queue'][0][0]), after=lambda error=None, connection=connection, server_id=server_id:
+    try:
+        source = await discord.FFmpegOpusAudio.from_probe(queues[server_id]['queue'][0][0])
+        connection.play(source, after=lambda error=None, connection=connection, server_id=server_id:
                                                                           after_track(error, connection, server_id))
     except IndexError: # that was the last item in queue
         queues.pop(server_id) # directory will be deleted on disconnect
@@ -207,7 +210,7 @@ async def on_command_error(ctx: discord.ext.commands.Context, err: discord.ext.c
     # we ran out of handlable exceptions, re-start. type_ and value are None for these
     sys.stderr.write(f'unhandled command error raised, {err=}')
     sys.stderr.flush()
-    sp.run(['./restart'])
+    #sp.run(['./restart'])
 
 @bot.event
 async def on_ready():
